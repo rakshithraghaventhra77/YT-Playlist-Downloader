@@ -1,12 +1,11 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Play, Pause, Trash2, MoreHorizontal, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface Download {
-  id: number;
+  id: number | string;
   title: string;
   url: string;
   videoCount: number;
@@ -17,14 +16,55 @@ interface Download {
   aiCategory: string;
   estimatedSize: string;
   thumbnails: string[];
+  isPlaylist?: boolean;
+  author?: string;
+  duration?: number;
+  error?: string;
 }
 
 interface DownloadQueueProps {
   downloads: Download[];
-  onUpdateDownload: (id: number, updates: Partial<Download>) => void;
+  onUpdateDownload: (id: number | string, updates: Partial<Download>) => void;
 }
 
+const API_BASE_URL = 'http://localhost:3001/api';
+
 export const DownloadQueue: React.FC<DownloadQueueProps> = ({ downloads, onUpdateDownload }) => {
+  const [pollingDownloads, setPollingDownloads] = useState<Set<string | number>>(new Set());
+
+  // Poll for download status updates
+  useEffect(() => {
+    const activeDownloads = downloads.filter(d => 
+      d.status === 'queued' || d.status === 'downloading'
+    );
+
+    if (activeDownloads.length === 0) {
+      setPollingDownloads(new Set());
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      for (const download of activeDownloads) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/download/${download.id}`);
+          if (response.ok) {
+            const updatedDownload = await response.json();
+            onUpdateDownload(download.id, {
+              status: updatedDownload.status,
+              progress: updatedDownload.progress,
+              title: updatedDownload.title,
+              error: updatedDownload.error
+            });
+          }
+        } catch (error) {
+          console.error('Error polling download status:', error);
+        }
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [downloads, onUpdateDownload]);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'queued':
@@ -51,20 +91,30 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ downloads, onUpdat
     }
   };
 
-  const simulateDownload = (id: number) => {
-    onUpdateDownload(id, { status: 'downloading' });
-    
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        progress = 100;
-        onUpdateDownload(id, { status: 'completed', progress: 100 });
-        clearInterval(interval);
-      } else {
-        onUpdateDownload(id, { progress: Math.floor(progress) });
+  const cancelDownload = async (id: string | number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/download/${id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        onUpdateDownload(id, { status: 'cancelled' });
       }
-    }, 500);
+    } catch (error) {
+      console.error('Error cancelling download:', error);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return '';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -104,7 +154,15 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ downloads, onUpdat
                     <div>
                       <h3 className="text-white font-medium truncate">{download.title}</h3>
                       <div className="flex items-center space-x-3 mt-1">
-                        <span className="text-sm text-slate-400">{download.videoCount} videos</span>
+                        <span className="text-sm text-slate-400">
+                          {download.isPlaylist ? `${download.videoCount} videos` : '1 video'}
+                        </span>
+                        {download.author && (
+                          <span className="text-sm text-slate-400">by {download.author}</span>
+                        )}
+                        {download.duration && (
+                          <span className="text-sm text-slate-400">{formatDuration(download.duration)}</span>
+                        )}
                         <Badge variant="outline" className="text-xs">
                           {download.quality} • {download.format.toUpperCase()}
                         </Badge>
@@ -135,44 +193,41 @@ export const DownloadQueue: React.FC<DownloadQueueProps> = ({ downloads, onUpdat
                     </div>
                   )}
                   
+                  {download.status === 'error' && download.error && (
+                    <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-300">
+                      Error: {download.error}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4 text-sm text-slate-400">
                       <span>Size: {download.estimatedSize}</span>
                       {download.status === 'downloading' && (
-                        <span>Speed: 12.4 MB/s</span>
+                        <span>Speed: Calculating...</span>
                       )}
                     </div>
                     
                     <div className="flex items-center space-x-2">
-                      {download.status === 'queued' && (
+                      {(download.status === 'queued' || download.status === 'downloading') && (
                         <Button 
                           size="sm" 
-                          onClick={() => simulateDownload(download.id)}
-                          className="bg-green-500/20 hover:bg-green-500/30 text-green-300 border-green-500/30"
+                          onClick={() => cancelDownload(download.id)}
+                          className="bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/30"
                         >
-                          <Play className="w-3 h-3 mr-1" />
-                          Start
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Cancel
                         </Button>
                       )}
                       
-                      {download.status === 'downloading' && (
+                      {download.status === 'completed' && (
                         <Button 
                           size="sm"
-                          onClick={() => onUpdateDownload(download.id, { status: 'paused' })}
-                          className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border-orange-500/30"
+                          className="bg-green-500/20 hover:bg-green-500/30 text-green-300 border-green-500/30"
                         >
-                          <Pause className="w-3 h-3 mr-1" />
-                          Pause
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Complete
                         </Button>
                       )}
-                      
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
                     </div>
                   </div>
                 </div>
