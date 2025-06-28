@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { UrlInput } from '../components/UrlInput';
@@ -12,21 +13,17 @@ const Index = () => {
 
   const addDownload = (playlistData) => {
     const newDownload = {
-      id: playlistData.id,
+      id: Date.now(),
       title: playlistData.title,
       url: playlistData.url,
       videoCount: playlistData.videoCount,
-      status: playlistData.status || 'queued',
-      progress: playlistData.progress || 0,
+      status: 'queued',
+      progress: 0,
       quality: playlistData.quality,
       format: playlistData.format,
       aiCategory: playlistData.aiCategory,
       estimatedSize: playlistData.estimatedSize,
       thumbnails: playlistData.thumbnails,
-      isPlaylist: playlistData.isPlaylist,
-      author: playlistData.author,
-      duration: playlistData.duration,
-      error: playlistData.error
     };
     setDownloads(prev => [...prev, newDownload]);
   };

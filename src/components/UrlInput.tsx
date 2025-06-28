@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,8 +10,6 @@ import { useToast } from '../hooks/use-toast';
 interface UrlInputProps {
   onAddDownload: (playlistData: any) => void;
 }
-
-const API_BASE_URL = 'http://localhost:3001/api';
 
 export const UrlInput: React.FC<UrlInputProps> = ({ onAddDownload }) => {
   const [url, setUrl] = useState('');
@@ -31,75 +30,32 @@ export const UrlInput: React.FC<UrlInputProps> = ({ onAddDownload }) => {
 
     setIsAnalyzing(true);
     
-    try {
-      const isPlaylist = url.includes('playlist');
-      
-      // Get video/playlist info from backend
-      const infoResponse = await fetch(
-        `${API_BASE_URL}/${isPlaylist ? 'playlist-info' : 'video-info'}?url=${encodeURIComponent(url)}`
-      );
-      
-      if (!infoResponse.ok) {
-        throw new Error('Failed to get video/playlist info');
-      }
-      
-      const info = await infoResponse.json();
-      
-      // Start the download
-      const downloadResponse = await fetch(`${API_BASE_URL}/download`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url,
-          quality: quality,
-          format: format,
-          isPlaylist: isPlaylist
-        }),
-      });
-      
-      if (!downloadResponse.ok) {
-        throw new Error('Failed to start download');
-      }
-      
-      const downloadData = await downloadResponse.json();
-      
-      const playlistData = {
-        id: downloadData.downloadId,
-        title: info.title || 'Unknown Title',
+    // Simulate AI analysis
+    setTimeout(() => {
+      const mockPlaylistData = {
+        title: "AI & Machine Learning Fundamentals",
         url: url,
-        videoCount: info.videoCount || 1,
+        videoCount: Math.floor(Math.random() * 50) + 10,
         quality: quality,
         format: format,
-        aiCategory: isPlaylist ? "Playlist" : "Single Video",
-        estimatedSize: "Calculating...",
-        thumbnails: info.thumbnail ? [info.thumbnail] : [],
-        status: 'queued',
-        progress: 0,
-        isPlaylist: isPlaylist,
-        author: info.author || 'Unknown Author',
-        duration: info.duration || 0
+        aiCategory: "Educational",
+        estimatedSize: "2.4 GB",
+        thumbnails: [
+          "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=120&h=90&fit=crop&crop=face",
+          "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=120&h=90&fit=crop&crop=face",
+          "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=120&h=90&fit=crop&crop=face"
+        ]
       };
       
-      onAddDownload(playlistData);
+      onAddDownload(mockPlaylistData);
       setUrl('');
-      
-      toast({
-        title: "Download Started!",
-        description: `${playlistData.videoCount} video(s) queued for download`,
-      });
-      
-    } catch (error) {
-      console.error('Error analyzing URL:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to analyze URL. Please check your connection and try again.",
-        variant: "destructive",
-      });
-    } finally {
       setIsAnalyzing(false);
-    }
+      
+      toast({
+        title: "Playlist Added!",
+        description: `${mockPlaylistData.videoCount} videos queued for download`,
+      });
+    }, 2000);
   };
 
   return (
